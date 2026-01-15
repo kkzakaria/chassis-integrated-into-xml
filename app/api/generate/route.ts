@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Injecter les VINs dans le XML - Marks2_of_packages
+    // Injecter les VINs dans le XML - Marks2_of_packages (avec préfixe "CH: ")
     let vinIndex = 0;
     let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         if (vinIndex < result.vins.length) {
           const vin = result.vins[vinIndex];
           vinIndex++;
-          return `<Marks2_of_packages>${vin}</Marks2_of_packages>`;
+          return `<Marks2_of_packages>CH: ${vin}</Marks2_of_packages>`;
         }
         return "<Marks2_of_packages/>";
       }
