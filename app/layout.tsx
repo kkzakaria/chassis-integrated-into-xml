@@ -13,8 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Générateur VIN - Châssis XML",
+  title: "VIN Generator - Châssis XML",
   description: "Génération de numéros de châssis VIN ISO 3779 pour templates XML ASYCUDA",
+  keywords: ["VIN", "châssis", "générateur", "XML", "ASYCUDA", "ISO 3779"],
+  authors: [{ name: "VIN Generator" }],
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

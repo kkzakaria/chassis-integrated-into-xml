@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 interface Template {
   filename: string;
@@ -108,8 +109,17 @@ export default function Home() {
       <div className="mx-auto max-w-4xl px-4 py-12">
         {/* Header */}
         <header className="mb-12 text-center">
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="/logo.svg"
+              alt="VIN Generator Logo"
+              width={80}
+              height={80}
+              priority
+            />
+          </div>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            Générateur de Châssis VIN
+            VIN Generator
           </h1>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
             Sélectionnez un template XML et générez les numéros de châssis
