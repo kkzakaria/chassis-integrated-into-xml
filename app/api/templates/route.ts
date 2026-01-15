@@ -27,7 +27,7 @@ export async function GET() {
     );
 
     return NextResponse.json({ success: true, templates });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { success: false, error: "Erreur lors de la lecture des templates" },
       { status: 500 }

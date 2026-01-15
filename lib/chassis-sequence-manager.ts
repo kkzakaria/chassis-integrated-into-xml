@@ -11,6 +11,7 @@
  */
 
 import { promises as fs } from "fs";
+import * as fsSync from "fs";
 import path from "path";
 import { SequenceStatistics } from "./types";
 import { ISequenceManager } from "./vin-generator";
@@ -68,7 +69,6 @@ export class ChassisSequenceManager implements ISequenceManager {
     if (this.isLoaded) return;
 
     try {
-      const fsSync = require("fs");
       const dir = path.dirname(this.storagePath);
 
       if (!fsSync.existsSync(dir)) {
@@ -107,7 +107,6 @@ export class ChassisSequenceManager implements ISequenceManager {
    */
   private saveSync(): void {
     try {
-      const fsSync = require("fs");
       const dir = path.dirname(this.storagePath);
 
       if (!fsSync.existsSync(dir)) {
