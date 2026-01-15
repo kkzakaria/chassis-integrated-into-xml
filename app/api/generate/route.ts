@@ -100,9 +100,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Injecter les VINs dans le XML
+    // Injecter les VINs dans le XML - Marks2_of_packages
     let vinIndex = 0;
-    const updatedXml = xmlContent.replace(
+    let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
       () => {
         if (vinIndex < result.vins.length) {
@@ -111,6 +111,20 @@ export async function POST(request: NextRequest) {
           return `<Marks2_of_packages>${vin}</Marks2_of_packages>`;
         }
         return "<Marks2_of_packages/>";
+      }
+    );
+
+    // Injecter les VINs dans Attached_documents (code 6122 ou 6022)
+    vinIndex = 0;
+    updatedXml = updatedXml.replace(
+      /<Attached_documents>\s*<Attached_document_code>(6122|6022)<\/Attached_document_code>\s*<Attached_document_name>([^<]*)<\/Attached_document_name>\s*<Attached_document_from_rule>/g,
+      (match, code, name) => {
+        if (vinIndex < result.vins.length) {
+          const vin = result.vins[vinIndex];
+          vinIndex++;
+          return `<Attached_documents>\n<Attached_document_code>${code}</Attached_document_code>\n<Attached_document_name>${name}</Attached_document_name>\n<Attached_document_reference>${vin}</Attached_document_reference>\n<Attached_document_from_rule>`;
+        }
+        return match;
       }
     );
 
