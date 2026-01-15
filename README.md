@@ -24,26 +24,26 @@ pnpm dev
 
 Ouvrir [http://localhost:3000](http://localhost:3000) dans le navigateur.
 
-## Production avec Vercel KV
+## Production avec Upstash Redis
 
-Pour garantir l'unicité des VINs en production avec plusieurs instances serverless, configurez Vercel KV:
+Pour garantir l'unicité des VINs en production avec plusieurs instances serverless, configurez Upstash Redis via le Vercel Marketplace:
 
-### 1. Créer un store KV
+### 1. Créer une base Redis
 
 1. Allez sur [Vercel Dashboard](https://vercel.com/dashboard)
 2. Sélectionnez votre projet
 3. Allez dans **Storage** > **Create Database**
-4. Choisissez **KV** et créez le store
+4. Sélectionnez **Upstash** dans le Marketplace
+5. Créez une base Redis
 
-### 2. Lier le store au projet
+### 2. Variables d'environnement
 
-Le store sera automatiquement lié et les variables d'environnement seront configurées:
+Les variables seront automatiquement configurées:
 
-- `KV_REST_API_URL`
-- `KV_REST_API_TOKEN`
-- `KV_URL` (optionnel)
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 
-### 3. Développement local avec KV
+### 3. Développement local
 
 ```bash
 vercel env pull .env.local
@@ -53,8 +53,8 @@ vercel env pull .env.local
 
 | Variable | Description | Requis |
 |----------|-------------|--------|
-| `KV_REST_API_URL` | URL de l'API REST Vercel KV | Production |
-| `KV_REST_API_TOKEN` | Token d'authentification KV | Production |
+| `UPSTASH_REDIS_REST_URL` | URL de l'API REST Upstash | Production |
+| `UPSTASH_REDIS_REST_TOKEN` | Token d'authentification | Production |
 
 Sans ces variables, le système utilise un fichier local (`data/chassis_sequences.json`).
 
