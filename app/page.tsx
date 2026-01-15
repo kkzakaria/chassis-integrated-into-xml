@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface Template {
   filename: string;
@@ -106,6 +107,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
+      {/* Theme Toggle - Fixed Position */}
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
+
       <div className="mx-auto max-w-4xl px-4 py-12">
         {/* Header */}
         <header className="mb-12 text-center">
