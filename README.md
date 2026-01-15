@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VIN Generator - Chassis XML
 
-## Getting Started
+Générateur de numéros de châssis (VIN) ISO 3779 pour templates XML ASYCUDA.
 
-First, run the development server:
+## Fonctionnalités
+
+- Génération de VINs conformes à la norme ISO 3779
+- Injection automatique dans les templates XML ASYCUDA
+- Interface web pour sélection de templates et configuration
+- Gestion de l'unicité des séquences (fichier local ou Vercel KV)
+- Support du mode clair/sombre
+
+## Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Développement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Ouvrir [http://localhost:3000](http://localhost:3000) dans le navigateur.
 
-## Learn More
+## Production avec Vercel KV
 
-To learn more about Next.js, take a look at the following resources:
+Pour garantir l'unicité des VINs en production avec plusieurs instances serverless, configurez Vercel KV:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Créer un store KV
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Allez sur [Vercel Dashboard](https://vercel.com/dashboard)
+2. Sélectionnez votre projet
+3. Allez dans **Storage** > **Create Database**
+4. Choisissez **KV** et créez le store
 
-## Deploy on Vercel
+### 2. Lier le store au projet
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Le store sera automatiquement lié et les variables d'environnement seront configurées:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+- `KV_URL` (optionnel)
+
+### 3. Développement local avec KV
+
+```bash
+vercel env pull .env.local
+```
+
+## Variables d'environnement
+
+| Variable | Description | Requis |
+|----------|-------------|--------|
+| `KV_REST_API_URL` | URL de l'API REST Vercel KV | Production |
+| `KV_REST_API_TOKEN` | Token d'authentification KV | Production |
+
+Sans ces variables, le système utilise un fichier local (`data/chassis_sequences.json`).
+
+## Structure des VINs
+
+| Position | Contenu | Exemple |
+|----------|---------|---------|
+| 1-3 | WMI (fabricant) | LZS |
+| 4-8 | VDS (descripteur) | HCKZS |
+| 9 | Checksum | 2 |
+| 10 | Année | T (2030) |
+| 11 | Code usine | S |
+| 12-17 | Séquence unique | 000001 |
+
+## API
+
+### POST /api/generate
+
+Génère des VINs et les injecte dans un template XML.
+
+**Body:**
+```json
+{
+  "template": "140-POSITIONS-1039-POIDS-TRICYCLE.xml",
+  "wmi": "LZS",
+  "vds": "HCKZS",
+  "plantCode": "S"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "xml": "...",
+  "filename": "20260115_143000_140-POSITIONS-1039-POIDS-TRICYCLE.xml",
+  "metadata": {
+    "vinCount": 140,
+    "sequenceManager": "kv"
+  }
+}
+```
+
+### GET /api/templates
+
+Liste les templates XML disponibles.
+
+## Licence
+
+MIT

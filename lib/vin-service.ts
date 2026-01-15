@@ -3,10 +3,19 @@
  *
  * Fournit une API simple pour generer des VINs uniques
  * avec persistance automatique des sequences.
+ *
+ * Supporte deux modes:
+ * - Synchrone (fichier local) pour le développement
+ * - Asynchrone (Vercel KV) pour la production
  */
 
 import { ChassisFactory, VINGenerator, ChassisValidator } from "./vin-generator";
 import { ChassisSequenceManager } from "./chassis-sequence-manager";
+import {
+  getSequenceManager,
+  getSequenceManagerType,
+  AsyncSequenceManager,
+} from "./sequence-manager-factory";
 import {
   VINGenerationRequest,
   VINGenerationResponse,
@@ -133,6 +142,115 @@ export class VINService {
    */
   exportToText(vins: string[]): string {
     return vins.join("\n");
+  }
+}
+
+/**
+ * Service de génération VIN asynchrone
+ * Utilise Vercel KV en production, fichier local en développement
+ */
+export class AsyncVINService {
+  private sequenceManager: AsyncSequenceManager;
+
+  constructor() {
+    this.sequenceManager = getSequenceManager();
+  }
+
+  /**
+   * Génère des VINs uniques de manière asynchrone
+   * Compatible avec Vercel KV pour la production
+   */
+  async generateVINsAsync(request: VINGenerationRequest): Promise<VINGenerationResponse> {
+    const {
+      quantity,
+      wmi,
+      vds = "HCKZS",
+      year,
+      plantCode = "S",
+    } = request;
+
+    // Valider paramètres
+    if (quantity < 1 || quantity > 10000) {
+      throw new Error("La quantité doit être entre 1 et 10000");
+    }
+    if (wmi.length !== 3) {
+      throw new Error("Le WMI doit avoir exactement 3 caractères");
+    }
+    if (vds.length !== 5) {
+      throw new Error("Le VDS doit avoir exactement 5 caractères");
+    }
+    if (!(year in VINGenerator.YEAR_CODES)) {
+      throw new Error(`L'année ${year} n'est pas supportée (2001-2030)`);
+    }
+    if (plantCode.length !== 1) {
+      throw new Error("Le code usine doit avoir exactement 1 caractère");
+    }
+
+    // Construire le préfixe
+    const yearCode = VINGenerator.YEAR_CODES[year];
+    const prefix = `${wmi}${vds}${yearCode}${plantCode}`;
+
+    // Générer les VINs avec séquences atomiques
+    const vins: string[] = [];
+    let startSequence = 0;
+    let endSequence = 0;
+
+    for (let i = 0; i < quantity; i++) {
+      const sequence = await this.sequenceManager.getNextSequenceAsync(prefix);
+      if (i === 0) startSequence = sequence;
+      endSequence = sequence;
+
+      // Construire le VIN
+      const sequenceStr = sequence.toString().padStart(6, "0");
+      const vinWithoutChecksum = `${wmi}${vds}X${yearCode}${plantCode}${sequenceStr}`;
+      const checksum = ChassisValidator.calculateVINChecksum(vinWithoutChecksum);
+      const vin = `${wmi}${vds}${checksum}${yearCode}${plantCode}${sequenceStr}`;
+      vins.push(vin);
+    }
+
+    const metadata: VINGenerationMetadata = {
+      quantity,
+      wmi,
+      vds,
+      year,
+      plantCode,
+      prefix,
+      startSequence,
+      endSequence,
+      generatedAt: new Date().toISOString(),
+    };
+
+    return {
+      success: true,
+      vins,
+      metadata,
+    };
+  }
+
+  /**
+   * Génère un seul VIN unique
+   */
+  async generateSingleVINAsync(
+    wmi: string,
+    vds: string = "HCKZS",
+    year: number = new Date().getFullYear(),
+    plantCode: string = "S"
+  ): Promise<string> {
+    const result = await this.generateVINsAsync({
+      quantity: 1,
+      wmi,
+      vds,
+      year,
+      plantCode,
+    });
+    return result.vins[0];
+  }
+
+  /**
+   * Retourne le type de gestionnaire utilisé
+   */
+  getManagerType(): "kv" | "file" {
+    return getSequenceManagerType();
   }
 }
 
