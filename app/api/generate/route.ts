@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { VINService } from "@/lib/vin-service";
+import { AsyncVINService } from "@/lib/vin-service";
 import { VINGenerator } from "@/lib/vin-generator";
 
 // Pool de WMI aléatoires (fabricants chinois)
@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
     }
     const positionCount = parseInt(match[1], 10);
 
-    // Générer les VINs
-    const vinService = new VINService();
-    const result = vinService.generateVINs({
+    // Générer les VINs (async pour support Vercel KV)
+    const vinService = new AsyncVINService();
+    const result = await vinService.generateVINsAsync({
       quantity: positionCount,
       wmi: finalWmi,
       vds: finalVds,
@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
         vinsGenerated: result.vins,
         timestamp,
         config: { wmi: finalWmi, vds: finalVds, year: targetYear, plantCode: finalPlantCode },
+        sequenceManager: vinService.getManagerType(),
       },
     });
   } catch (error) {

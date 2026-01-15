@@ -34,7 +34,22 @@ export {
 } from "./chassis-sequence-manager";
 
 // Service VIN simplifie
-export { VINService, getVINService } from "./vin-service";
+export { VINService, getVINService, AsyncVINService } from "./vin-service";
+
+// Gestionnaire de séquences KV (Vercel)
+export {
+  KVSequenceManager,
+  getKVSequenceManager,
+  isKVConfigured,
+} from "./kv-sequence-manager";
+
+// Factory pour gestionnaire de séquences
+export {
+  getSequenceManager,
+  getSequenceManagerType,
+  type AsyncSequenceManager,
+  type SequenceManagerType,
+} from "./sequence-manager-factory";
 
 // Service de traitement XML template
 export {
