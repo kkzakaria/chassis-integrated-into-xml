@@ -74,20 +74,20 @@ export class XMLTemplateService {
   }
 
   /**
-   * Remplace les balises Marks2_of_packages vides par les VINs générés
+   * Remplace les balises Marks2_of_packages vides par les VINs générés (avec préfixe "CH: ")
    * et ajoute Attached_document_reference dans les sections Attached_documents avec code 6122
    */
   injectVINsIntoXML(xmlContent: string, vins: string[]): string {
     let vinIndex = 0;
 
-    // Remplacer les balises Marks2_of_packages vides ou avec contenu
+    // Remplacer les balises Marks2_of_packages vides ou avec contenu (avec préfixe "CH: ")
     let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
       () => {
         if (vinIndex < vins.length) {
           const vin = vins[vinIndex];
           vinIndex++;
-          return `<Marks2_of_packages>${vin}</Marks2_of_packages>`;
+          return `<Marks2_of_packages>CH: ${vin}</Marks2_of_packages>`;
         }
         return "<Marks2_of_packages/>";
       }
