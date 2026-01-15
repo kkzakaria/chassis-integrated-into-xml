@@ -11,7 +11,6 @@ interface Template {
 interface GenerationConfig {
   wmi: string;
   vds: string;
-  year: number;
   plantCode: string;
 }
 
@@ -22,10 +21,10 @@ export default function Home() {
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState<GenerationConfig>({
     wmi: "",
     vds: "",
-    year: new Date().getFullYear(),
     plantCode: "",
   });
 
@@ -71,7 +70,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           template: selectedTemplate,
-          ...config,
+          ...(showConfig ? config : {}),
         }),
       });
 
@@ -150,73 +149,84 @@ export default function Home() {
             )}
           </div>
 
-          {/* Configuration (optionnelle) */}
+          {/* Configuration Switch */}
           <div className="mb-8">
-            <h3 className="mb-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Configuration VIN <span className="font-normal text-zinc-500">(optionnel - valeurs aléatoires si vide)</span>
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
-                  WMI (3 car.)
-                </label>
-                <input
-                  type="text"
-                  maxLength={3}
-                  value={config.wmi}
-                  placeholder="Aléatoire"
-                  onChange={(e) =>
-                    setConfig({ ...config, wmi: e.target.value.toUpperCase() })
-                  }
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Configuration personnalisée
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showConfig}
+                onClick={() => setShowConfig(!showConfig)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-800 ${
+                  showConfig ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-600"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showConfig ? "translate-x-6" : "translate-x-1"
+                  }`}
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
-                  VDS (5 car.)
-                </label>
-                <input
-                  type="text"
-                  maxLength={5}
-                  value={config.vds}
-                  placeholder="Aléatoire"
-                  onChange={(e) =>
-                    setConfig({ ...config, vds: e.target.value.toUpperCase() })
-                  }
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
-                  Année
-                </label>
-                <input
-                  type="number"
-                  min={2001}
-                  max={2030}
-                  value={config.year}
-                  onChange={(e) =>
-                    setConfig({ ...config, year: parseInt(e.target.value) || new Date().getFullYear() })
-                  }
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
-                  Code Usine
-                </label>
-                <input
-                  type="text"
-                  maxLength={1}
-                  value={config.plantCode}
-                  placeholder="Aléatoire"
-                  onChange={(e) =>
-                    setConfig({ ...config, plantCode: e.target.value.toUpperCase() })
-                  }
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
-                />
-              </div>
+              </button>
             </div>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {showConfig
+                ? "Définissez vos propres paramètres VIN"
+                : "Valeurs aléatoires générées automatiquement"}
+            </p>
+
+            {/* Configuration Fields */}
+            {showConfig && (
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                    WMI (3 car.)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={3}
+                    value={config.wmi}
+                    placeholder="Ex: LZS"
+                    onChange={(e) =>
+                      setConfig({ ...config, wmi: e.target.value.toUpperCase() })
+                    }
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                    VDS (5 car.)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={5}
+                    value={config.vds}
+                    placeholder="Ex: HCKZS"
+                    onChange={(e) =>
+                      setConfig({ ...config, vds: e.target.value.toUpperCase() })
+                    }
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                    Code Usine (1 car.)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={1}
+                    value={config.plantCode}
+                    placeholder="Ex: S"
+                    onChange={(e) =>
+                      setConfig({ ...config, plantCode: e.target.value.toUpperCase() })
+                    }
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error/Success Messages */}
