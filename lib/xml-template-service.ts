@@ -75,12 +75,13 @@ export class XMLTemplateService {
 
   /**
    * Remplace les balises Marks2_of_packages vides par les VINs générés
+   * et ajoute Attached_document_reference dans les sections Attached_documents avec code 6122
    */
   injectVINsIntoXML(xmlContent: string, vins: string[]): string {
     let vinIndex = 0;
 
     // Remplacer les balises Marks2_of_packages vides ou avec contenu
-    const updatedXml = xmlContent.replace(
+    let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
       () => {
         if (vinIndex < vins.length) {
@@ -89,6 +90,23 @@ export class XMLTemplateService {
           return `<Marks2_of_packages>${vin}</Marks2_of_packages>`;
         }
         return "<Marks2_of_packages/>";
+      }
+    );
+
+    // Réinitialiser l'index pour les Attached_documents
+    vinIndex = 0;
+
+    // Ajouter Attached_document_reference dans les sections Attached_documents avec code 6122 ou 6022
+    // Pattern pour matcher la section complète Attached_documents avec code 6122 ou 6022
+    updatedXml = updatedXml.replace(
+      /<Attached_documents>\s*<Attached_document_code>(6122|6022)<\/Attached_document_code>\s*<Attached_document_name>([^<]*)<\/Attached_document_name>\s*<Attached_document_from_rule>/g,
+      (match, code, name) => {
+        if (vinIndex < vins.length) {
+          const vin = vins[vinIndex];
+          vinIndex++;
+          return `<Attached_documents>\n<Attached_document_code>${code}</Attached_document_code>\n<Attached_document_name>${name}</Attached_document_name>\n<Attached_document_reference>${vin}</Attached_document_reference>\n<Attached_document_from_rule>`;
+        }
+        return match;
       }
     );
 
