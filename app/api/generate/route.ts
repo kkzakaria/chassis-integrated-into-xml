@@ -4,10 +4,35 @@ import path from "path";
 import { VINService } from "@/lib/vin-service";
 import { VINGenerator } from "@/lib/vin-generator";
 
+// Pool de WMI aléatoires (fabricants chinois)
+const WMI_POOL = ["LZS", "LFV", "LBV", "LDC", "LGX", "LVS", "LHG"];
+
+// Caractères autorisés pour VDS (sans I, O, Q)
+const VDS_CHARS = "ABCDEFGHJKLMNPRSTUVWXY0123456789";
+
+// Caractères autorisés pour code usine
+const PLANT_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ123456789";
+
+function generateRandomWMI(): string {
+  return WMI_POOL[Math.floor(Math.random() * WMI_POOL.length)];
+}
+
+function generateRandomVDS(): string {
+  let vds = "";
+  for (let i = 0; i < 5; i++) {
+    vds += VDS_CHARS[Math.floor(Math.random() * VDS_CHARS.length)];
+  }
+  return vds;
+}
+
+function generateRandomPlantCode(): string {
+  return PLANT_CHARS[Math.floor(Math.random() * PLANT_CHARS.length)];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { template, wmi = "LZS", vds = "HCKZS", year, plantCode = "S" } = body;
+    const { template, wmi, vds, year, plantCode } = body;
 
     if (!template) {
       return NextResponse.json(
@@ -18,6 +43,11 @@ export async function POST(request: NextRequest) {
 
     // Année par défaut: année courante
     const targetYear = year || new Date().getFullYear();
+
+    // Valeurs aléatoires si non fournies
+    const finalWmi = wmi || generateRandomWMI();
+    const finalVds = vds || generateRandomVDS();
+    const finalPlantCode = plantCode || generateRandomPlantCode();
 
     // Vérifier que l'année est supportée
     if (!(targetYear in VINGenerator.YEAR_CODES)) {
@@ -57,10 +87,10 @@ export async function POST(request: NextRequest) {
     const vinService = new VINService();
     const result = vinService.generateVINs({
       quantity: positionCount,
-      wmi,
-      vds,
+      wmi: finalWmi,
+      vds: finalVds,
       year: targetYear,
-      plantCode,
+      plantCode: finalPlantCode,
     });
 
     if (!result.success) {
@@ -107,7 +137,7 @@ export async function POST(request: NextRequest) {
         vinCount: positionCount,
         vinsGenerated: result.vins,
         timestamp,
-        config: { wmi, vds, year: targetYear, plantCode },
+        config: { wmi: finalWmi, vds: finalVds, year: targetYear, plantCode: finalPlantCode },
       },
     });
   } catch (error) {

@@ -23,10 +23,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [config, setConfig] = useState<GenerationConfig>({
-    wmi: "LZS",
-    vds: "HCKZS",
+    wmi: "",
+    vds: "",
     year: new Date().getFullYear(),
-    plantCode: "S",
+    plantCode: "",
   });
 
   // Charger les templates au démarrage
@@ -150,64 +150,72 @@ export default function Home() {
             )}
           </div>
 
-          {/* Configuration */}
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                WMI (3 car.)
-              </label>
-              <input
-                type="text"
-                maxLength={3}
-                value={config.wmi}
-                onChange={(e) =>
-                  setConfig({ ...config, wmi: e.target.value.toUpperCase() })
-                }
-                className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                VDS (5 car.)
-              </label>
-              <input
-                type="text"
-                maxLength={5}
-                value={config.vds}
-                onChange={(e) =>
-                  setConfig({ ...config, vds: e.target.value.toUpperCase() })
-                }
-                className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Année
-              </label>
-              <input
-                type="number"
-                min={2001}
-                max={2030}
-                value={config.year}
-                onChange={(e) =>
-                  setConfig({ ...config, year: parseInt(e.target.value) || 2025 })
-                }
-                className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Code Usine
-              </label>
-              <input
-                type="text"
-                maxLength={1}
-                value={config.plantCode}
-                onChange={(e) =>
-                  setConfig({ ...config, plantCode: e.target.value.toUpperCase() })
-                }
-                className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
+          {/* Configuration (optionnelle) */}
+          <div className="mb-8">
+            <h3 className="mb-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Configuration VIN <span className="font-normal text-zinc-500">(optionnel - valeurs aléatoires si vide)</span>
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                  WMI (3 car.)
+                </label>
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={config.wmi}
+                  placeholder="Aléatoire"
+                  onChange={(e) =>
+                    setConfig({ ...config, wmi: e.target.value.toUpperCase() })
+                  }
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                  VDS (5 car.)
+                </label>
+                <input
+                  type="text"
+                  maxLength={5}
+                  value={config.vds}
+                  placeholder="Aléatoire"
+                  onChange={(e) =>
+                    setConfig({ ...config, vds: e.target.value.toUpperCase() })
+                  }
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                  Année
+                </label>
+                <input
+                  type="number"
+                  min={2001}
+                  max={2030}
+                  value={config.year}
+                  onChange={(e) =>
+                    setConfig({ ...config, year: parseInt(e.target.value) || new Date().getFullYear() })
+                  }
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                  Code Usine
+                </label>
+                <input
+                  type="text"
+                  maxLength={1}
+                  value={config.plantCode}
+                  placeholder="Aléatoire"
+                  onChange={(e) =>
+                    setConfig({ ...config, plantCode: e.target.value.toUpperCase() })
+                  }
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+                />
+              </div>
             </div>
           </div>
 
