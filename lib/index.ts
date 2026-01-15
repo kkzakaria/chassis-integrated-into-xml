@@ -35,3 +35,11 @@ export {
 
 // Service VIN simplifie
 export { VINService, getVINService } from "./vin-service";
+
+// Service de traitement XML template
+export {
+  XMLTemplateService,
+  getXMLTemplateService,
+  type XMLTemplateConfig,
+  type XMLProcessingResult,
+} from "./xml-template-service";
