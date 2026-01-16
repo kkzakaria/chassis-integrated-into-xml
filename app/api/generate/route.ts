@@ -101,9 +101,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Injecter les VINs dans le XML - Marks2_of_packages (avec préfixe "CH: ")
+    // Gère les formats: <Marks2_of_packages/> (self-closing) et <Marks2_of_packages>..content..</Marks2_of_packages> (multiligne)
     let vinIndex = 0;
     let updatedXml = xmlContent.replace(
-      /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
+      /<Marks2_of_packages\s*\/>|<Marks2_of_packages>[\s\S]*?<\/Marks2_of_packages>/g,
       () => {
         if (vinIndex < result.vins.length) {
           const vin = result.vins[vinIndex];
