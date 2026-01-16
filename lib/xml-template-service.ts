@@ -81,8 +81,10 @@ export class XMLTemplateService {
     let vinIndex = 0;
 
     // Remplacer les balises Marks2_of_packages vides ou avec contenu (avec préfixe "CH: ")
+    // Gère les formats: <Marks2_of_packages/>, <Marks2_of_packages></Marks2_of_packages>,
+    // et <Marks2_of_packages><null/></Marks2_of_packages> (avec sauts de ligne optionnels)
     let updatedXml = xmlContent.replace(
-      /<Marks2_of_packages\s*\/?>(?:<\/Marks2_of_packages>)?/g,
+      /<Marks2_of_packages\s*\/?>(?:\s*(?:<null\s*\/>)?\s*<\/Marks2_of_packages>)?/g,
       () => {
         if (vinIndex < vins.length) {
           const vin = vins[vinIndex];
