@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TemplateUpload } from "@/components/template-upload";
 
 interface Template {
   filename: string;
@@ -24,6 +25,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [config, setConfig] = useState<GenerationConfig>({
     wmi: "",
     vds: "",
@@ -290,6 +292,58 @@ export default function Home() {
               "Générer et Télécharger XML"
             )}
           </button>
+        </div>
+
+        {/* Add Template Section */}
+        <div className="mt-6">
+          {!showUpload ? (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Ajouter un template
+            </button>
+          ) : (
+            <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-zinc-800">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  Ajouter un template
+                </h2>
+                <button
+                  onClick={() => setShowUpload(false)}
+                  className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <TemplateUpload onUploadSuccess={fetchTemplates} />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
