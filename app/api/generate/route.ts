@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { AsyncVINService } from "@/lib/vin-service";
 import { VINGenerator } from "@/lib/vin-generator";
+import { getTemplateFromBlob, isBlobConfigured } from "@/lib/blob-template-storage";
 
 // Pool de WMI aléatoires (fabricants chinois)
 const WMI_POOL = ["LZS", "LFV", "LBV", "LDC", "LGX", "LVS", "LHG"];
@@ -27,6 +28,46 @@ function generateRandomVDS(): string {
 
 function generateRandomPlantCode(): string {
   return PLANT_CHARS[Math.floor(Math.random() * PLANT_CHARS.length)];
+}
+
+/**
+ * Détermine si on est en mode production (Vercel)
+ */
+function isProduction(): boolean {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+}
+
+/**
+ * Lit le contenu d'un template
+ * - Production: Vercel Blob uniquement
+ * - Développement: Filesystem (+ Blob si configuré)
+ */
+async function readTemplateContent(filename: string): Promise<string | null> {
+  // En production avec Blob: uniquement Blob
+  if (isProduction() && isBlobConfigured()) {
+    return await getTemplateFromBlob(filename);
+  }
+
+  // En développement: filesystem d'abord
+  const templateDir = path.join(process.cwd(), "xml-template");
+  const templatePath = path.join(templateDir, filename);
+
+  try {
+    await fs.access(templatePath);
+    return await fs.readFile(templatePath, "utf-8");
+  } catch {
+    // Pas trouvé dans le filesystem
+  }
+
+  // En dev, essayer Blob si configuré
+  if (isBlobConfigured()) {
+    const blobContent = await getTemplateFromBlob(filename);
+    if (blobContent) {
+      return blobContent;
+    }
+  }
+
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -58,20 +99,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Lire le template
-    const templateDir = path.join(process.cwd(), "xml-template");
-    const templatePath = path.join(templateDir, template);
+    const xmlContent = await readTemplateContent(template);
 
-    // Vérifier que le fichier existe
-    try {
-      await fs.access(templatePath);
-    } catch {
+    if (!xmlContent) {
       return NextResponse.json(
         { success: false, error: "Template non trouvé" },
         { status: 404 }
       );
     }
-
-    const xmlContent = await fs.readFile(templatePath, "utf-8");
 
     // Extraire le nombre de positions depuis le nom du fichier
     const match = template.match(/^(\d+)-/);
@@ -101,7 +136,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Injecter les VINs dans le XML - Marks2_of_packages (avec préfixe "CH: ")
-    // Gère les formats: <Marks2_of_packages/> (self-closing) et <Marks2_of_packages>..content..</Marks2_of_packages> (multiligne)
     let vinIndex = 0;
     let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/>|<Marks2_of_packages>[\s\S]*?<\/Marks2_of_packages>/g,
