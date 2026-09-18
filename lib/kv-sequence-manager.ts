@@ -20,17 +20,84 @@ import { ISequenceManager } from "./vin-generator";
 const SEQUENCE_PREFIX = "chassis_seq:";
 
 /**
+ * Paire de variables d'environnement décrivant une base Upstash
+ *
+ * Deux conventions coexistent selon la façon dont la base a été rattachée:
+ * - UPSTASH_REDIS_REST_*  : variables saisies manuellement
+ * - KV_REST_API_*         : variables provisionnées par l'intégration Vercel
+ */
+export type RedisCredentialSource = "UPSTASH_REDIS_REST_*" | "KV_REST_API_*";
+
+interface RedisCredentials {
+  url: string;
+  token: string;
+  source: RedisCredentialSource;
+}
+
+/**
+ * Sélectionne une paire URL/token cohérente
+ *
+ * Les deux variables d'une même paire sont prises ensemble ou pas du tout:
+ * combiner l'URL d'une convention avec le token de l'autre produirait un
+ * client qui pointe vers une base avec les identifiants d'une autre.
+ *
+ * UPSTASH_REDIS_REST_* l'emporte quand les deux paires sont définies.
+ */
+function resolveRedisCredentials(): RedisCredentials | null {
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (upstashUrl && upstashToken) {
+    return {
+      url: upstashUrl,
+      token: upstashToken,
+      source: "UPSTASH_REDIS_REST_*",
+    };
+  }
+
+  const kvUrl = process.env.KV_REST_API_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN;
+
+  if (kvUrl && kvToken) {
+    return { url: kvUrl, token: kvToken, source: "KV_REST_API_*" };
+  }
+
+  return null;
+}
+
+/**
+ * Retourne la paire de variables effectivement utilisée, ou null
+ */
+export function getActiveRedisSource(): RedisCredentialSource | null {
+  return resolveRedisCredentials()?.source ?? null;
+}
+
+/**
+ * Indique si les deux conventions sont définies en même temps
+ *
+ * Situation ambiguë: UPSTASH_REDIS_REST_* masque silencieusement
+ * KV_REST_API_*, ce qui peut désigner une autre base que celle attendue.
+ */
+export function hasConflictingRedisVariables(): boolean {
+  const hasUpstash = !!(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  );
+  const hasKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+
+  return hasUpstash && hasKV;
+}
+
+/**
  * Crée une instance Redis si les variables sont configurées
  */
 function createRedisClient(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const credentials = resolveRedisCredentials();
 
-  if (!url || !token) {
+  if (!credentials) {
     return null;
   }
 
-  return new Redis({ url, token });
+  return new Redis({ url: credentials.url, token: credentials.token });
 }
 
 /**
@@ -54,13 +121,24 @@ function describeRedisError(error: unknown, operation: string): Error {
     reason.includes("ETIMEDOUT");
 
   if (isNetworkFailure) {
-    return new Error(
+    const source = getActiveRedisSource() ?? "UPSTASH_REDIS_REST_*";
+
+    // Nommer la paire réellement lue: pointer l'autre convention pousserait
+    // à créer des variables qui masqueraient celles qui fonctionnent.
+    let message =
       `Upstash Redis injoignable lors de ${operation} (${reason}). ` +
-        "Cause la plus fréquente: la base a été archivée pour inactivité. " +
-        "Vérifiez son état sur console.upstash.com, restaurez-la depuis les " +
-        "\"inactive databases\", puis contrôlez UPSTASH_REDIS_REST_URL et " +
-        "UPSTASH_REDIS_REST_TOKEN dans les variables d'environnement Vercel."
-    );
+      "Causes fréquentes: base archivée pour inactivité, ou URL REST erronée. " +
+      `La connexion utilise actuellement la paire ${source}: vérifiez que sa ` +
+      "valeur correspond à l'URL REST de la base active sur console.upstash.com.";
+
+    if (hasConflictingRedisVariables()) {
+      message +=
+        " Attention: UPSTASH_REDIS_REST_* et KV_REST_API_* sont toutes deux " +
+        "définies. La première masque la seconde. Supprimez la paire inutile " +
+        "pour lever l'ambiguïté.";
+    }
+
+    return new Error(message);
   }
 
   return new Error(`Upstash Redis a rejeté ${operation}: ${reason}`);
@@ -347,6 +425,10 @@ export function getKVSequenceManager(): KVSequenceManager {
 export interface KVConnectionCheck {
   configured: boolean;
   reachable: boolean;
+  /** Paire de variables effectivement lue par le client */
+  source?: RedisCredentialSource;
+  /** Vrai si les deux conventions sont définies, l'une masquant l'autre */
+  conflictingVariables?: boolean;
   latencyMs?: number;
   error?: string;
 }
@@ -362,8 +444,11 @@ export async function checkKVConnection(): Promise<KVConnectionCheck> {
     return {
       configured: false,
       reachable: false,
+      conflictingVariables: false,
       error:
-        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN absents. " +
+        "Aucune paire complète de variables Redis. Définissez soit " +
+        "UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, soit " +
+        "KV_REST_API_URL + KV_REST_API_TOKEN (URL et token de la même paire). " +
         "Les séquences retombent sur le fichier local, non persistant en production.",
     };
   }
@@ -373,6 +458,8 @@ export async function checkKVConnection(): Promise<KVConnectionCheck> {
     return { configured: false, reachable: false, error: "Client Redis non créé." };
   }
 
+  const source = getActiveRedisSource() ?? undefined;
+  const conflictingVariables = hasConflictingRedisVariables();
   const startedAt = Date.now();
 
   try {
@@ -380,12 +467,16 @@ export async function checkKVConnection(): Promise<KVConnectionCheck> {
     return {
       configured: true,
       reachable: true,
+      source,
+      conflictingVariables,
       latencyMs: Date.now() - startedAt,
     };
   } catch (error) {
     return {
       configured: true,
       reachable: false,
+      source,
+      conflictingVariables,
       latencyMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),
     };
@@ -396,7 +487,5 @@ export async function checkKVConnection(): Promise<KVConnectionCheck> {
  * Vérifie si Upstash Redis est configuré
  */
 export function isKVConfigured(): boolean {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  return !!(url && token);
+  return resolveRedisCredentials() !== null;
 }

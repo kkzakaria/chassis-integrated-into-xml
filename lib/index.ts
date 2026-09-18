@@ -42,7 +42,10 @@ export {
   getKVSequenceManager,
   isKVConfigured,
   checkKVConnection,
+  getActiveRedisSource,
+  hasConflictingRedisVariables,
   type KVConnectionCheck,
+  type RedisCredentialSource,
 } from "./kv-sequence-manager";
 
 // Factory pour gestionnaire de séquences

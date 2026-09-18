@@ -86,10 +86,12 @@ export function getSequenceManager(): AsyncSequenceManager {
 
   if (isProduction()) {
     throw new Error(
-      "Upstash Redis n'est pas configuré en production. Les variables " +
-        "UPSTASH_REDIS_REST_URL et UPSTASH_REDIS_REST_TOKEN sont absentes des " +
-        "variables d'environnement Vercel. Le repli sur le fichier local est " +
-        "refusé ici: il produirait des numéros de châssis en doublon."
+      "Upstash Redis n'est pas configuré en production. Définissez une paire " +
+        "complète dans les variables d'environnement Vercel: soit " +
+        "UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, soit " +
+        "KV_REST_API_URL + KV_REST_API_TOKEN (l'URL et le token doivent venir " +
+        "de la même paire). Le repli sur le fichier local est refusé ici: il " +
+        "produirait des numéros de châssis en doublon."
     );
   }
 

@@ -43,7 +43,17 @@ export async function GET() {
   } else if (!redis.reachable) {
     problems.push(
       `Upstash Redis injoignable (${redis.error}). C'est la cause directe de l'erreur ` +
-        "lors de la génération: chaque VIN nécessite un INCR atomique."
+        `lors de la génération. La paire de variables utilisée est ${redis.source}.`
+    );
+  }
+
+  // Les deux conventions définies en même temps: UPSTASH_REDIS_REST_* masque
+  // KV_REST_API_*, ce qui peut désigner une base différente de celle attendue.
+  if (redis.conflictingVariables) {
+    problems.push(
+      "UPSTASH_REDIS_REST_* et KV_REST_API_* sont toutes deux définies. " +
+        "UPSTASH_REDIS_REST_* est prioritaire et masque l'autre paire. " +
+        "Supprimez celle qui ne correspond pas à la base active."
     );
   }
 
@@ -71,6 +81,8 @@ export async function GET() {
         redis: {
           configured: redis.configured,
           reachable: redis.reachable,
+          activeSource: redis.source,
+          conflictingVariables: redis.conflictingVariables,
           latencyMs: redis.latencyMs,
           error: redis.error,
           envVars: {

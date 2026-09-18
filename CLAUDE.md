@@ -71,11 +71,19 @@ diagnosed from the response instead of the Vercel logs.
 
 | Variable | Required For |
 |----------|--------------|
-| `UPSTASH_REDIS_REST_URL` | Production (VIN sequences) |
-| `UPSTASH_REDIS_REST_TOKEN` | Production (VIN sequences) |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Production (VIN sequences) |
+| `KV_REST_API_URL` + `KV_REST_API_TOKEN` | Alternative pair, provisioned by the Vercel/Upstash integration |
 | `BLOB_READ_WRITE_TOKEN` | Production (template storage) |
 | `MIGRATION_SECRET` | Template migration API |
 | `ADMIN_SECRET` | Sequence administration API (falls back to `MIGRATION_SECRET`) |
+
+**Redis credentials come in pairs.** URL and token are always taken from the
+same convention — never one from each — so an orphan variable cannot point the
+client at one database with another's token. When both complete pairs are
+defined, `UPSTASH_REDIS_REST_*` wins and silently masks `KV_REST_API_*`:
+`GET /api/health` reports which pair is active (`activeSource`) and flags the
+ambiguity (`conflictingVariables`). Define only the pair matching the live
+database.
 
 Without Redis variables, development falls back to file-based sequences;
 production fails with an explicit error instead.
