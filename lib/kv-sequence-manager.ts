@@ -34,6 +34,63 @@ function createRedisClient(): Redis | null {
 }
 
 /**
+ * Transforme une erreur Redis brute en message exploitable
+ *
+ * Le client @upstash/redis relance l'erreur réseau de Node ("fetch failed")
+ * après 5 tentatives lorsque l'endpoint ne répond pas. Ce message ne dit rien
+ * à l'utilisateur: on le remplace par la cause probable et la marche à suivre.
+ *
+ * Les erreurs HTTP (UpstashError: mauvais token, quota dépassé) portent déjà
+ * un message explicite de l'API et sont conservées telles quelles.
+ */
+function describeRedisError(error: unknown, operation: string): Error {
+  const reason = error instanceof Error ? error.message : String(error);
+
+  // Échec au niveau réseau: DNS, connexion refusée, TLS
+  const isNetworkFailure =
+    reason.includes("fetch failed") ||
+    reason.includes("ENOTFOUND") ||
+    reason.includes("ECONNREFUSED") ||
+    reason.includes("ETIMEDOUT");
+
+  if (isNetworkFailure) {
+    return new Error(
+      `Upstash Redis injoignable lors de ${operation} (${reason}). ` +
+        "Cause la plus fréquente: la base a été archivée pour inactivité. " +
+        "Vérifiez son état sur console.upstash.com, restaurez-la depuis les " +
+        "\"inactive databases\", puis contrôlez UPSTASH_REDIS_REST_URL et " +
+        "UPSTASH_REDIS_REST_TOKEN dans les variables d'environnement Vercel."
+    );
+  }
+
+  return new Error(`Upstash Redis a rejeté ${operation}: ${reason}`);
+}
+
+/**
+ * Plage de séquences réservée de manière atomique
+ */
+export interface SequenceRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Script Lua: relève un compteur à une valeur plancher sans jamais le baisser
+ *
+ * Redis n'a pas de "SET IF GREATER" natif. Passer par GET puis SET côté client
+ * ouvrirait une fenêtre de concurrence; le script s'exécute atomiquement.
+ */
+const RAISE_FLOOR_SCRIPT = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+local floor = tonumber(ARGV[1])
+if floor > current then
+  redis.call('SET', KEYS[1], floor)
+  return floor
+end
+return current
+`;
+
+/**
  * Gestionnaire de séquences utilisant Upstash Redis
  *
  * Avantages:
@@ -88,8 +145,13 @@ export class KVSequenceManager implements ISequenceManager {
 
     const key = `${SEQUENCE_PREFIX}${prefix}`;
 
-    // INCR est atomique dans Redis - parfait pour les compteurs
-    const nextSeq = await this.redis.incr(key);
+    let nextSeq: number;
+    try {
+      // INCR est atomique dans Redis - parfait pour les compteurs
+      nextSeq = await this.redis.incr(key);
+    } catch (error) {
+      throw describeRedisError(error, `l'incrément de la séquence ${prefix}`);
+    }
 
     // Vérifier limite VIN (6 digits max = 999999)
     if (nextSeq > 999999) {
@@ -102,6 +164,83 @@ export class KVSequenceManager implements ISequenceManager {
   }
 
   /**
+   * Réserve une plage de séquences consécutives en une seule opération
+   *
+   * INCRBY est atomique: la plage [retour - count + 1, retour] appartient
+   * exclusivement à cet appel, même si plusieurs instances serverless
+   * réservent en même temps.
+   *
+   * Remplace N appels INCR successifs par un seul aller-retour réseau.
+   */
+  async reserveSequenceRangeAsync(
+    prefix: string,
+    count: number
+  ): Promise<SequenceRange> {
+    if (!this.redis) {
+      throw new Error(
+        "Redis non configuré. Vérifiez les variables UPSTASH_REDIS_REST_URL et UPSTASH_REDIS_REST_TOKEN."
+      );
+    }
+
+    if (count < 1) {
+      throw new Error(`Le nombre de séquences à réserver doit être >= 1, reçu: ${count}`);
+    }
+
+    const key = `${SEQUENCE_PREFIX}${prefix}`;
+
+    let end: number;
+    try {
+      end = await this.redis.incrby(key, count);
+    } catch (error) {
+      throw describeRedisError(
+        error,
+        `la réservation de ${count} séquences pour ${prefix}`
+      );
+    }
+
+    const start = end - count + 1;
+
+    // Vérifier limite VIN (6 digits max = 999999)
+    if (end > 999999) {
+      console.warn(
+        `Séquence ${prefix} atteint limite (999999). Considérer changement de préfixe.`
+      );
+    }
+
+    return { start, end };
+  }
+
+  /**
+   * Relève le compteur d'un préfixe à une valeur plancher
+   *
+   * Ne baisse jamais un compteur: sert à réamorcer les séquences après
+   * restauration d'une base, sans risquer de réémettre des numéros déjà
+   * utilisés.
+   *
+   * @returns La valeur du compteur après l'opération
+   */
+  async raiseSequenceFloorAsync(prefix: string, floor: number): Promise<number> {
+    if (!this.redis) {
+      throw new Error("Redis non configuré.");
+    }
+
+    if (!Number.isInteger(floor) || floor < 0 || floor > 999999) {
+      throw new Error(
+        `Le plancher doit être un entier entre 0 et 999999, reçu: ${floor}`
+      );
+    }
+
+    const key = `${SEQUENCE_PREFIX}${prefix}`;
+
+    try {
+      const result = await this.redis.eval(RAISE_FLOOR_SCRIPT, [key], [floor]);
+      return Number(result);
+    } catch (error) {
+      throw describeRedisError(error, `le réamorçage de la séquence ${prefix}`);
+    }
+  }
+
+  /**
    * Retourne la séquence actuelle pour ce préfixe
    */
   async getCurrentSequenceAsync(prefix: string): Promise<number> {
@@ -110,8 +249,12 @@ export class KVSequenceManager implements ISequenceManager {
     }
 
     const key = `${SEQUENCE_PREFIX}${prefix}`;
-    const value = await this.redis.get<number>(key);
-    return value ?? 0;
+    try {
+      const value = await this.redis.get<number>(key);
+      return value ?? 0;
+    } catch (error) {
+      throw describeRedisError(error, `la lecture de la séquence ${prefix}`);
+    }
   }
 
   /**
@@ -136,18 +279,22 @@ export class KVSequenceManager implements ISequenceManager {
       throw new Error("Redis non configuré.");
     }
 
-    const keys = await this.redis.keys(`${SEQUENCE_PREFIX}*`);
-    const result: Record<string, number> = {};
+    try {
+      const keys = await this.redis.keys(`${SEQUENCE_PREFIX}*`);
+      const result: Record<string, number> = {};
 
-    for (const key of keys) {
-      const prefix = key.replace(SEQUENCE_PREFIX, "");
-      const value = await this.redis.get<number>(key);
-      if (value !== null) {
-        result[prefix] = value;
+      for (const key of keys) {
+        const prefix = key.replace(SEQUENCE_PREFIX, "");
+        const value = await this.redis.get<number>(key);
+        if (value !== null) {
+          result[prefix] = value;
+        }
       }
-    }
 
-    return result;
+      return result;
+    } catch (error) {
+      throw describeRedisError(error, "la lecture des séquences");
+    }
   }
 
   /**
@@ -192,6 +339,57 @@ export function getKVSequenceManager(): KVSequenceManager {
     kvManagerInstance = new KVSequenceManager();
   }
   return kvManagerInstance;
+}
+
+/**
+ * Résultat d'un test de connexion à Upstash Redis
+ */
+export interface KVConnectionCheck {
+  configured: boolean;
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+/**
+ * Teste la connexion à Upstash Redis (diagnostic)
+ *
+ * Contrairement aux méthodes du manager, cette fonction ne lève jamais
+ * d'exception: elle retourne l'erreur rencontrée pour affichage.
+ */
+export async function checkKVConnection(): Promise<KVConnectionCheck> {
+  if (!isKVConfigured()) {
+    return {
+      configured: false,
+      reachable: false,
+      error:
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN absents. " +
+        "Les séquences retombent sur le fichier local, non persistant en production.",
+    };
+  }
+
+  const redis = createRedisClient();
+  if (!redis) {
+    return { configured: false, reachable: false, error: "Client Redis non créé." };
+  }
+
+  const startedAt = Date.now();
+
+  try {
+    await redis.ping();
+    return {
+      configured: true,
+      reachable: true,
+      latencyMs: Date.now() - startedAt,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      latencyMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /**

@@ -172,3 +172,49 @@ export async function deleteTemplateFromBlob(
     return false;
   }
 }
+
+/**
+ * Résultat d'un test de connexion à Vercel Blob
+ */
+export interface BlobConnectionCheck {
+  configured: boolean;
+  reachable: boolean;
+  templateCount?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+/**
+ * Teste la connexion à Vercel Blob (diagnostic)
+ *
+ * Contrairement à listBlobTemplates(), cette fonction remonte l'erreur
+ * rencontrée au lieu de retourner une liste vide.
+ */
+export async function checkBlobConnection(): Promise<BlobConnectionCheck> {
+  if (!isBlobConfigured()) {
+    return {
+      configured: false,
+      reachable: false,
+      error: "BLOB_READ_WRITE_TOKEN absent.",
+    };
+  }
+
+  const startedAt = Date.now();
+
+  try {
+    const { blobs } = await list({ prefix: BLOB_PREFIX });
+    return {
+      configured: true,
+      reachable: true,
+      templateCount: blobs.length,
+      latencyMs: Date.now() - startedAt,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      latencyMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

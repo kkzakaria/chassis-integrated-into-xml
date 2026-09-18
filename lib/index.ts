@@ -41,6 +41,8 @@ export {
   KVSequenceManager,
   getKVSequenceManager,
   isKVConfigured,
+  checkKVConnection,
+  type KVConnectionCheck,
 } from "./kv-sequence-manager";
 
 // Factory pour gestionnaire de séquences
@@ -49,6 +51,7 @@ export {
   getSequenceManagerType,
   type AsyncSequenceManager,
   type SequenceManagerType,
+  type SequenceRange,
 } from "./sequence-manager-factory";
 
 // Service de traitement XML template
