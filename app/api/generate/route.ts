@@ -4,6 +4,14 @@ import path from "path";
 import { AsyncVINService } from "@/lib/vin-service";
 import { VINGenerator } from "@/lib/vin-generator";
 import { getTemplateFromBlob, isBlobConfigured } from "@/lib/blob-template-storage";
+import { getSequenceManagerType } from "@/lib/sequence-manager-factory";
+
+/**
+ * Messages d'erreur levés par AsyncVINService pour des paramètres invalides
+ * (par opposition à une panne d'infrastructure)
+ */
+const VIN_VALIDATION_PATTERN =
+  /doit avoir exactement|doit être entre|n'est pas supportée/;
 
 // Pool de WMI aléatoires (fabricants chinois)
 const WMI_POOL = ["LZS", "LFV", "LBV", "LDC", "LGX", "LVS", "LHG"];
@@ -70,7 +78,19 @@ async function readTemplateContent(filename: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Étapes de la génération, utilisées pour localiser une erreur en production
+ */
+type GenerationStage =
+  | "parse_request"
+  | "read_template"
+  | "generate_vins"
+  | "inject_xml"
+  | "build_response";
+
 export async function POST(request: NextRequest) {
+  let stage: GenerationStage = "parse_request";
+
   try {
     const body = await request.json();
     const { template, wmi, vds, year, plantCode } = body;
@@ -99,6 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Lire le template
+    stage = "read_template";
     const xmlContent = await readTemplateContent(template);
 
     if (!xmlContent) {
@@ -119,6 +140,7 @@ export async function POST(request: NextRequest) {
     const positionCount = parseInt(match[1], 10);
 
     // Générer les VINs (async pour support Vercel KV)
+    stage = "generate_vins";
     const vinService = new AsyncVINService();
     const result = await vinService.generateVINsAsync({
       quantity: positionCount,
@@ -136,6 +158,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Injecter les VINs dans le XML - Marks2_of_packages (avec préfixe "CH: ")
+    stage = "inject_xml";
     let vinIndex = 0;
     let updatedXml = xmlContent.replace(
       /<Marks2_of_packages\s*\/>|<Marks2_of_packages>[\s\S]*?<\/Marks2_of_packages>/g,
@@ -164,6 +187,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Générer le timestamp pour le nom du fichier
+    stage = "build_response";
     const now = new Date();
     const timestamp = [
       now.getFullYear(),
@@ -191,10 +215,26 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Erreur génération:", error);
+    const reason = error instanceof Error ? error.message : String(error);
+
+    console.error(`Erreur génération [étape: ${stage}]:`, error);
+
+    // Les paramètres VIN invalides sont une erreur client, pas une panne serveur
+    const isValidationError =
+      stage === "generate_vins" && VIN_VALIDATION_PATTERN.test(reason);
+
     return NextResponse.json(
-      { success: false, error: "Erreur lors de la génération" },
-      { status: 500 }
+      {
+        success: false,
+        error: `Erreur lors de la génération (${stage}): ${reason}`,
+        details: {
+          stage,
+          reason,
+          sequenceManager: getSequenceManagerType(),
+          blobConfigured: isBlobConfigured(),
+        },
+      },
+      { status: isValidationError ? 400 : 500 }
     );
   }
 }

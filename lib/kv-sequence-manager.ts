@@ -195,6 +195,57 @@ export function getKVSequenceManager(): KVSequenceManager {
 }
 
 /**
+ * Résultat d'un test de connexion à Upstash Redis
+ */
+export interface KVConnectionCheck {
+  configured: boolean;
+  reachable: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+/**
+ * Teste la connexion à Upstash Redis (diagnostic)
+ *
+ * Contrairement aux méthodes du manager, cette fonction ne lève jamais
+ * d'exception: elle retourne l'erreur rencontrée pour affichage.
+ */
+export async function checkKVConnection(): Promise<KVConnectionCheck> {
+  if (!isKVConfigured()) {
+    return {
+      configured: false,
+      reachable: false,
+      error:
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN absents. " +
+        "Les séquences retombent sur le fichier local, non persistant en production.",
+    };
+  }
+
+  const redis = createRedisClient();
+  if (!redis) {
+    return { configured: false, reachable: false, error: "Client Redis non créé." };
+  }
+
+  const startedAt = Date.now();
+
+  try {
+    await redis.ping();
+    return {
+      configured: true,
+      reachable: true,
+      latencyMs: Date.now() - startedAt,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      latencyMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
  * Vérifie si Upstash Redis est configuré
  */
 export function isKVConfigured(): boolean {
