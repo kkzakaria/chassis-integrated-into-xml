@@ -26,8 +26,13 @@ pnpm lint             # Run ESLint
 
 2. **Sequence Management** (dual implementation)
    - `ChassisSequenceManager` - File-based persistence (`data/chassis_sequences.json`) for development
-   - `KVSequenceManager` - Upstash Redis with atomic `INCR` for production uniqueness
+   - `KVSequenceManager` - Upstash Redis with atomic `INCRBY` for production uniqueness
    - `SequenceManagerFactory` - Auto-selects based on environment variables
+
+   A whole batch is reserved in a single `INCRBY` round-trip, not one `INCR`
+   per VIN. In production the factory **throws** when Redis is not configured
+   rather than falling back to the file: the Vercel filesystem is read-only and
+   per-instance, so the fallback would silently emit duplicate chassis numbers.
 
 3. **Service Layer** (`lib/vin-service.ts`)
    - `VINService` - Synchronous operations (dev)
@@ -48,6 +53,13 @@ pnpm lint             # Run ESLint
 - `GET /api/templates` - Lists available XML templates with position counts
 - `POST /api/templates/upload` - Uploads a new XML template (to Blob in production)
 - `POST /api/templates/migrate` - Migrates filesystem templates to Blob (protected)
+- `GET /api/health` - Diagnostics: tests Upstash Redis and Vercel Blob connectivity
+- `GET /api/sequences` - Lists current sequence counters (protected)
+- `POST /api/sequences` - Raises sequence counters to a floor value (protected)
+
+Errors from `/api/generate` carry the failing stage (`read_template`,
+`generate_vins`, ...) and the underlying cause, so a production failure can be
+diagnosed from the response instead of the Vercel logs.
 
 ### Data Flow
 
@@ -63,8 +75,37 @@ pnpm lint             # Run ESLint
 | `UPSTASH_REDIS_REST_TOKEN` | Production (VIN sequences) |
 | `BLOB_READ_WRITE_TOKEN` | Production (template storage) |
 | `MIGRATION_SECRET` | Template migration API |
+| `ADMIN_SECRET` | Sequence administration API (falls back to `MIGRATION_SECRET`) |
 
-Without Redis variables, falls back to file-based sequences.
+Without Redis variables, development falls back to file-based sequences;
+production fails with an explicit error instead.
+
+### Recovering an archived Upstash database
+
+Upstash archives free databases left inactive. Symptom: `/api/generate` fails
+at the `generate_vins` stage with `fetch failed` (a network-level error, not an
+auth or quota error, which would surface as an `UpstashError` instead).
+
+Restore the database from the Upstash console rather than creating an empty
+one — a fresh database resets every counter to zero and the app would re-emit
+chassis numbers already printed on customs documents. After restoring, check
+the counters:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_SECRET" https://your-app.vercel.app/api/sequences
+```
+
+If they came back empty, raise them above the last issued value before
+generating anything:
+
+```bash
+curl -X POST https://your-app.vercel.app/api/sequences \
+  -H "Authorization: Bearer $ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"floors": {"LZSHCKZSTS": 500}}'
+```
+
+Counters can only be raised, never lowered.
 
 ## Template Storage
 

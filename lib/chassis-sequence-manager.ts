@@ -172,6 +172,61 @@ export class ChassisSequenceManager implements ISequenceManager {
   }
 
   /**
+   * Reserve une plage de sequences consecutives en une seule ecriture
+   *
+   * Equivalent local de INCRBY: evite de reecrire le fichier a chaque VIN.
+   *
+   * @returns Plage reservee, bornes incluses
+   */
+  async reserveSequenceRangeAsync(
+    prefix: string,
+    count: number
+  ): Promise<{ start: number; end: number }> {
+    if (count < 1) {
+      throw new Error(`Le nombre de sequences a reserver doit etre >= 1, recu: ${count}`);
+    }
+
+    await this.load();
+
+    const current = this.sequences.get(prefix) ?? 0;
+    const end = current + count;
+
+    if (end > 999999) {
+      console.warn(`Sequence ${prefix} atteint limite (999999).`);
+    }
+
+    this.sequences.set(prefix, end);
+    await this.save();
+
+    return { start: current + 1, end };
+  }
+
+  /**
+   * Releve le compteur d'un prefixe a une valeur plancher
+   *
+   * Ne baisse jamais un compteur existant.
+   *
+   * @returns La valeur du compteur apres l'operation
+   */
+  async raiseSequenceFloorAsync(prefix: string, floor: number): Promise<number> {
+    if (!Number.isInteger(floor) || floor < 0 || floor > 999999) {
+      throw new Error(`Le plancher doit etre un entier entre 0 et 999999, recu: ${floor}`);
+    }
+
+    await this.load();
+
+    const current = this.sequences.get(prefix) ?? 0;
+    if (floor <= current) {
+      return current;
+    }
+
+    this.sequences.set(prefix, floor);
+    await this.save();
+
+    return floor;
+  }
+
+  /**
    * Retourne la derniere sequence utilisee pour ce prefixe
    */
   getCurrentSequence(prefix: string): number {

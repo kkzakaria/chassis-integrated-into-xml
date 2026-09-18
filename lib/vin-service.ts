@@ -190,16 +190,15 @@ export class AsyncVINService {
     const yearCode = VINGenerator.YEAR_CODES[year];
     const prefix = `${wmi}${vds}${yearCode}${plantCode}`;
 
-    // Générer les VINs avec séquences atomiques
+    // Réserver toute la plage en une seule opération atomique.
+    // Un INCRBY remplace N INCR: un seul aller-retour réseau au lieu de
+    // 250 pour un gros template, et une seule occasion d'échouer.
+    const { start: startSequence, end: endSequence } =
+      await this.sequenceManager.reserveSequenceRangeAsync(prefix, quantity);
+
     const vins: string[] = [];
-    let startSequence = 0;
-    let endSequence = 0;
 
-    for (let i = 0; i < quantity; i++) {
-      const sequence = await this.sequenceManager.getNextSequenceAsync(prefix);
-      if (i === 0) startSequence = sequence;
-      endSequence = sequence;
-
+    for (let sequence = startSequence; sequence <= endSequence; sequence++) {
       // Construire le VIN
       const sequenceStr = sequence.toString().padStart(6, "0");
       const vinWithoutChecksum = `${wmi}${vds}X${yearCode}${plantCode}${sequenceStr}`;
